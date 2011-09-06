@@ -1,0 +1,206 @@
+package Google::Fusion;
+use 5.006;
+
+use Moose;
+use LWP::UserAgent;
+use HTTP::Request;
+use URL::Encode qw/url_encode/;
+use YAML;
+use Carp;
+use Net::OAuth2::Client 0.09; 
+
+=head1 NAME
+
+Google::Fusion - Interface to the Google Fusion Tables API
+
+=head1 VERSION
+
+Version 0.01
+
+=cut
+
+our $VERSION = '0.01';
+
+
+=head1 SYNOPSIS
+
+Quick summary of what the module does.
+
+Perhaps a little code snippet.
+
+    use Google::Fusion;
+
+    my $foo = Google::Fusion->new();
+    ...
+
+=head1 PARAMS/ACCESSORS
+
+One of the following combination of parameters is required:
+
+    client_id and client_secret
+
+You will be prompted with a URL, with which you will atain an access_code.
+
+    client_id, client_secret, access_code
+
+The OAuth2 client will complete the authorization process for you and get the refresh_token and access_token for you
+
+    refresh_token and optionally access_token
+
+The OAuth2 client will get a valid access_token for you if necessary, and refresh it when necessary.
+
+    access_token
+
+You will be able to make requests as long as the access_token is valid.
+
+=head2 client_id
+
+The client id of your application.
+
+=head2 client_secret
+
+The secret for your application
+
+=head2 refresh_token
+
+Refresh token, aquired during the authorization process
+
+=head2 access_token
+
+A temporary access token aquired during the authorization process
+
+=head access_code
+
+The code returned during the OAuth2 authorization process with which access_token and refresh_token are aquired.
+
+=head auth_client
+
+A Net::OAuth2::Client object with which authenticated requests are made.  If you are running 
+in application mode (interactive), then you can accept the default.
+If you already have an authenticated client, then initialise with it.
+If you have some required parameters (access_token, refresh_token or access_code), but no client
+object yet, then just define these parameters, and allow the client to be created for you.
+
+=cut
+
+has 'client_id'     => ( is => 'ro', isa => 'Str',                                  );
+has 'client_secret' => ( is => 'ro', isa => 'Str',                                  );
+has 'refresh_token' => ( is => 'ro', isa => 'Str',                                  );
+has 'access_token'  => ( is => 'ro', isa => 'Str',                                  );
+has 'access_code'   => ( is => 'ro', isa => 'Str',                                  );
+has 'headers'       => ( is => 'ro', isa => 'Bool', required => 1, default => 1,    );
+has 'auth_client'   => ( is => 'ro',                required => 1, lazy => 1,
+    isa         => 'Net::OAuth2::Client',
+    builder     => '_build_auth_client',
+    );
+
+=head1 SUBROUTINES/METHODS
+
+=head2 query
+
+Submit a (Googley) SQL query.  Single argument is the SQL.
+Return value is the decoded content of the response.
+
+Example:
+
+    my $text = $fusion->query( 'SELECT * FROM 123456' );
+
+=cut
+sub query {
+    my $self    = shift;
+    my $sql     = shift;
+
+    my $response = $self->auth_client->post( 
+        'https://www.google.com/fusiontables/api/query',
+        HTTP::Headers->new( Content_Type => 'application/x-www-form-urlencoded' ),
+        sprintf( 'sql=%s&hdrs=%s',
+            url_encode( $sql ),
+            ( $self->headers ? 'true' : 'false' ),
+            ),
+        );
+    
+    if( not $response->is_success ){
+        croak( "Query failed\n" .
+            "Response: " . $response->decoded_content() . "\n" .
+            Dump( $response )
+            );
+    }
+    return $response->decoded_content();
+}
+
+# Local method to build the auth_client if it wasn't passed
+sub _build_auth_client {
+    my $self = shift;
+    my %client_params = (
+        id                      => $self->client_id,
+        secret                  => $self->client_secret,
+        site_url_base           => 'https://accounts.google.com/o/oauth2/auth',
+        access_token_url_base   => 'https://accounts.google.com/o/oauth2/token',
+        authorize_url_base      => 'https://accounts.google.com/o/oauth2/auth',
+        scope                   => 'https://www.google.com/fusiontables/api/query',        
+    );
+    foreach( qw/refresh_token access_code access_token/ ){
+        $client_params{$_} = $self->{$_} if $self->{$_};
+    }
+    my $client = Net::OAuth2::Client->new( %client_params );
+    return $client;
+}
+
+
+=head1 AUTHOR
+
+Robin Clarke, C<< <perl at robinclarke.net> >>
+
+=head1 BUGS
+
+Please report any bugs or feature requests to C<bug-google-fusion at rt.cpan.org>, or through
+the web interface at L<http://rt.cpan.org/NoAuth/ReportBug.html?Queue=Google-Fusion>.  I will be notified, and then you'll
+automatically be notified of progress on your bug as I make changes.
+
+=head1 SUPPORT
+
+You can find documentation for this module with the perldoc command.
+
+    perldoc Google::Fusion
+
+
+You can also look for information at:
+
+=over 4
+
+=item * RT: CPAN's request tracker (report bugs here)
+
+L<http://rt.cpan.org/NoAuth/Bugs.html?Dist=Google-Fusion>
+
+=item * AnnoCPAN: Annotated CPAN documentation
+
+L<http://annocpan.org/dist/Google-Fusion>
+
+=item * CPAN Ratings
+
+L<http://cpanratings.perl.org/d/Google-Fusion>
+
+=item * Search CPAN
+
+L<http://search.cpan.org/dist/Google-Fusion/>
+
+=back
+
+
+=head1 ACKNOWLEDGEMENTS
+
+
+=head1 LICENSE AND COPYRIGHT
+
+Copyright 2011 Robin Clarke.
+
+This program is free software; you can redistribute it and/or modify it
+under the terms of either: the GNU General Public License as published
+by the Free Software Foundation; or the Artistic License.
+
+See http://dev.perl.org/licenses/ for more information.
+
+
+=cut
+
+1; # End of Google::Fusion
