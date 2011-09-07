@@ -8,6 +8,7 @@ use URL::Encode qw/url_encode/;
 use YAML;
 use Carp;
 use Net::OAuth2::Client 0.09; 
+use Text::CSV;
 
 =head1 NAME
 
@@ -110,6 +111,9 @@ sub query {
     my $self    = shift;
     my $sql     = shift;
 
+    if( $sql !~ m/^(show|describe|create|select|insert|update|delete|drop)/i ){
+        die( "That doesn't look like a valid (Fusion) SQL statement...\n" );
+    }
     my $response = $self->auth_client->post( 
         'https://www.google.com/fusiontables/api/query',
         HTTP::Headers->new( Content_Type => 'application/x-www-form-urlencoded' ),
@@ -120,20 +124,38 @@ sub query {
         );
     
     if( not $response->is_success ){
+        # TODO: RCL 2011-09-08 Parse the actual error message from the response
+        # TODO: RCL 2011-09-08 Refresh access_key if it was invalid, or move that
+        # action to the Client?
         croak( "Query failed\n" .
             "Response: " . $response->decoded_content() . "\n" .
             Dump( $response )
             );
     }
-    return $response->decoded_content();
+
+    my $data = $response->decoded_content;
+    my @rows;
+    my $csv = Text::CSV->new ( { binary => 1 } )  # should set binary attribute.
+                 or die "Cannot use CSV: ".Text::CSV->error_diag ();
+ 
+    my $got_header = ( $self->headers ? 0 : 1 );
+    LINE:
+    foreach my $line( split( "\n", $data ) ) {
+        if( not $csv->parse( $line ) ){
+            croak( "Could not parse line:\n$line\n" );
+        }
+        my @columns = $csv->fields();
+        push @rows, \@columns;
+    }
+    $csv->eof or $csv->error_diag();
+    return @rows;
 }
 
 # Local method to build the auth_client if it wasn't passed
 sub _build_auth_client {
     my $self = shift;
+
     my %client_params = (
-        id                      => $self->client_id,
-        secret                  => $self->client_secret,
         site_url_base           => 'https://accounts.google.com/o/oauth2/auth',
         access_token_url_base   => 'https://accounts.google.com/o/oauth2/token',
         authorize_url_base      => 'https://accounts.google.com/o/oauth2/auth',
@@ -142,6 +164,9 @@ sub _build_auth_client {
     foreach( qw/refresh_token access_code access_token/ ){
         $client_params{$_} = $self->{$_} if $self->{$_};
     }
+    $client_params{id}      = $self->client_id      if $self->client_id;
+    $client_params{secret}  = $self->client_secret  if $self->client_secret;
+
     my $client = Net::OAuth2::Client->new( %client_params );
     return $client;
 }

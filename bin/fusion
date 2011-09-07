@@ -1,0 +1,117 @@
+#!/usr/bin/env perl
+
+use strict;
+use warnings;
+use YAML qw/LoadFile DumpFile Dump/;
+use Net::OAuth2::Client 0.09;
+use Getopt::Long;
+use File::Spec::Functions qw/catfile/;
+use Google::Fusion;
+use Term::ReadLine;
+use File::HomeDir;
+
+my %params;
+GetOptions( \%params,
+    'client_id=s',
+    'client_secret=s',
+    'access_code=s',
+    'refresh_token=s',
+    'access_token=s',
+    );
+%params = map{ $_ => $params{$_} }
+    grep{ $params{$_} }
+    keys %params;
+my $fusion = Google::Fusion->new( %params );
+# Force the auth_client to be built to see if enough parameters were given (it's lazy by default)
+$fusion->auth_client();
+
+my $term = Term::ReadLine->new('Fusion');
+my $prompt = "fusion> ";
+my $OUT = $term->OUT || \*STDOUT;
+my $command = '';
+
+COMMAND:
+while ( defined ( $command = $term->readline( $prompt ) ) ) {
+    warn $@ if $@;
+    if( $command =~ m/^\s*$/ ){
+        next COMMAND;
+    }
+    $term->addhistory($command); 
+    if( $command =~ m/^\.(.*)$/ or $command =~ m/^(help)$/i ){
+        if( not local_command( $1 ) ){
+            last COMMAND;
+        }
+    }else{
+        my @rows = $fusion->query( $command );
+        print_rows( $OUT, \@rows );
+    }
+}
+# If exit was with [ctrl]-d, then no command, so add a newline.
+printf "%sExiting fusion.\n", ( $command ? '' : "\n" );
+exit( 0 );
+
+# Accepts a filehandle and a reference to an array of array references
+sub print_rows {
+    my $fh = shift;
+    my $rows = shift;
+    if( scalar( @{ $rows } ) == 0 ){
+        return;
+    }
+
+    my $columns = scalar( @{ $rows->[0] } );
+    # Find the largest element in each row
+    my %max;
+    foreach my $row( @{ $rows } ){
+        foreach( 0 .. $columns - 1 ){
+            if( not $max{$_} or $max{$_} < length( $row->[$_] ) ){
+                $max{$_} = ( $row->[$_] ? length( $row->[$_] ) : 0 );
+            }
+        }
+    }
+    
+    my $fmt = ' | ';
+    foreach( 0 .. $columns - 1 ){
+        # TODO: RCL 2011-09-08 Add some handling here so that numbers be right justified
+        $fmt .= '%-' . $max{$_} . 's | ';
+    }
+    $fmt .= "\n";
+
+    foreach my $rownum( 0 .. scalar( @{ $rows } ) - 1 ){
+        my $row = $rows->[$rownum];
+        my @cleaned_row;
+        foreach( 0 .. $columns - 1 ){
+            push( @cleaned_row, $row->[$_] || '' );
+        }
+        printf $fh $fmt, @cleaned_row;
+
+        # print out a separator for the header
+        if( $rownum == 0 ){
+            # TODO: RCL 2011-09-08 Just print a line of '-'
+            printf $fh $fmt, map{ '=' x $max{$_} } 0 .. $columns - 1;
+        }
+    }
+}
+
+
+sub local_command {
+    my $command = shift;
+    if( $command =~ m/^(exit|quit)$/i ){
+        return 0;
+    }elsif( $command =~ m/^help$/i ){
+        print_help();
+    }else{
+        print "I don't know how to do that...\n";
+    }
+    return 1;
+}
+
+sub print_help {
+    my %commands = (
+        help    => 'show the internal commands',
+        quit    => 'exit the application',
+        'exit'  => 'exit the application',
+        );
+    foreach( sort keys %commands ){
+        printf ".%-10s %s\n", $_, $commands{$_};
+    }
+}
