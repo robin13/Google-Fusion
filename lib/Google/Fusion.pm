@@ -5,6 +5,7 @@ use Moose;
 use LWP::UserAgent;
 use HTTP::Request;
 use URL::Encode qw/url_encode/;
+use Encode qw/decode encode/;
 use YAML;
 use Carp;
 use Net::OAuth2::Client 0.09; 
@@ -133,10 +134,13 @@ sub query {
             );
     }
 
-    my $data = $response->decoded_content;
+    my $data = $response->content(); # Somehow ->decoded_content screws up the encoding... :-/
     my @rows;
-    my $csv = Text::CSV->new ( { binary => 1 } )  # should set binary attribute.
-                 or die "Cannot use CSV: ".Text::CSV->error_diag ();
+    my $csv = Text::CSV->new ( { 
+        binary      => 1,  # Reliable handling of UTF8 characters
+        escape_char => '"',
+        quote_char  => '"',
+        } ) or croak( "Cannot use CSV: ".Text::CSV->error_diag () );
  
     my $got_header = ( $self->headers ? 0 : 1 );
     LINE:

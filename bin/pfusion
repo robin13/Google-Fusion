@@ -1,7 +1,9 @@
 #!/usr/bin/env perl
-
+# TODO: RCL 2011-09-09 Intro header
+#
 use strict;
 use warnings;
+use utf8;
 use YAML qw/LoadFile DumpFile Dump/;
 use Net::OAuth2::Client 0.09;
 use Getopt::Long;
@@ -9,6 +11,8 @@ use File::Spec::Functions qw/catfile/;
 use Google::Fusion;
 use Term::ReadLine;
 use File::HomeDir;
+use Carp;
+use Try::Tiny;
 
 my %params;
 GetOptions( \%params,
@@ -17,19 +21,46 @@ GetOptions( \%params,
     'access_code=s',
     'refresh_token=s',
     'access_token=s',
+    'config=s',
     );
+
+# Clean out any undefined values
 %params = map{ $_ => $params{$_} }
     grep{ $params{$_} }
     keys %params;
-my $fusion = Google::Fusion->new( %params );
-# Force the auth_client to be built to see if enough parameters were given (it's lazy by default)
-$fusion->auth_client();
 
+# See if there's a config file in the users home, or a config file defined
+my $conf_file = $params{config} || catfile( File::HomeDir->my_home() , '.fusion' );
+delete( $params{config} );
+if( -f $conf_file ){
+    printf "Trying to load config from %s\n", $conf_file;
+    my $file_params = LoadFile( $conf_file );
+    %params = (
+        %{ $file_params },
+        %params,
+        );
+}
+
+# Initialise the Fusion object and force the auth_client to be built to see
+# if enough parameters were given (it's lazy by default)
+my $fusion = undef;
+try{
+    $fusion = Google::Fusion->new( %params );
+    $fusion->auth_client();
+}catch{
+    print $_;
+    # TODO: RCL 2011-09-09 Make poddoc
+    print "Help to come here...\n";
+    exit;
+};
+
+# Set up the terminal readline controller
 my $term = Term::ReadLine->new('Fusion');
 my $prompt = "fusion> ";
 my $OUT = $term->OUT || \*STDOUT;
 my $command = '';
 
+# Now loop handling the commands
 COMMAND:
 while ( defined ( $command = $term->readline( $prompt ) ) ) {
     warn $@ if $@;
@@ -42,11 +73,12 @@ while ( defined ( $command = $term->readline( $prompt ) ) ) {
             last COMMAND;
         }
     }else{
+        # TODO: RCL 2011-09-09 Time how long an exeuction takes
         my @rows = $fusion->query( $command );
         print_rows( $OUT, \@rows );
     }
 }
-# If exit was with [ctrl]-d, then no command, so add a newline.
+# If exit was with [ctrl]-d, then there will be no last command, so add a newline.
 printf "%sExiting fusion.\n", ( $command ? '' : "\n" );
 exit( 0 );
 
@@ -59,7 +91,9 @@ sub print_rows {
     }
 
     my $columns = scalar( @{ $rows->[0] } );
+
     # Find the largest element in each row
+    # TODO: RCL 2011-09-09 This won't handle elements with newlines gracefully...
     my %max;
     foreach my $row( @{ $rows } ){
         foreach( 0 .. $columns - 1 ){
@@ -71,7 +105,8 @@ sub print_rows {
     
     my $fmt = ' | ';
     foreach( 0 .. $columns - 1 ){
-        # TODO: RCL 2011-09-08 Add some handling here so that numbers be right justified
+        # TODO: RCL 2011-09-08 Add some handling here so that if recognized that all elements of
+        # a column are numbers they be right justified
         $fmt .= '%-' . $max{$_} . 's | ';
     }
     $fmt .= "\n";
@@ -92,25 +127,27 @@ sub print_rows {
     }
 }
 
-
+# Handle local commands (stuff which is not sent to the Fusion server
 sub local_command {
     my $command = shift;
     if( $command =~ m/^(exit|quit)$/i ){
         return 0;
     }elsif( $command =~ m/^help$/i ){
-        print_help();
+        print_local_help();
     }else{
         print "I don't know how to do that...\n";
     }
     return 1;
 }
 
-sub print_help {
+# The user called the local help command... give them some help baby!
+sub print_local_help {
     my %commands = (
         help    => 'show the internal commands',
         quit    => 'exit the application',
         'exit'  => 'exit the application',
         );
+    # All local commands start with a '.'
     foreach( sort keys %commands ){
         printf ".%-10s %s\n", $_, $commands{$_};
     }
