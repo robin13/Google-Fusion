@@ -170,7 +170,8 @@ sub _build_auth_client {
     }
     $client_params{id}      = $self->client_id      if $self->client_id;
     $client_params{secret}  = $self->client_secret  if $self->client_secret;
-
+    
+    print "Initialising Client with:\n".  Dump( \%client_params );
     my $client = Net::OAuth2::Client->new( %client_params );
     return $client;
 }
