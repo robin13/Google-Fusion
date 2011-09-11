@@ -5,7 +5,6 @@ use Moose;
 use LWP::UserAgent;
 use HTTP::Request;
 use URL::Encode qw/url_encode/;
-use Encode qw/decode encode/;
 use YAML;
 use Carp;
 use Net::OAuth2::Client 0.09; 
@@ -91,6 +90,7 @@ has 'refresh_token' => ( is => 'ro', isa => 'Str',                              
 has 'access_token'  => ( is => 'ro', isa => 'Str',                                  );
 has 'access_code'   => ( is => 'ro', isa => 'Str',                                  );
 has 'headers'       => ( is => 'ro', isa => 'Bool', required => 1, default => 1,    );
+has 'keep_alive'    => ( is => 'ro', isa => 'Bool', required => 1, default => 1,    );
 has 'auth_client'   => ( is => 'ro',                required => 1, lazy => 1,
     isa         => 'Net::OAuth2::Client',
     builder     => '_build_auth_client',
@@ -134,7 +134,8 @@ sub query {
             );
     }
 
-    my $data = $response->content(); # Somehow ->decoded_content screws up the encoding... :-/
+    my $data = $response->decoded_content();
+    
     my @rows;
     my $csv = Text::CSV->new ( { 
         binary      => 1,  # Reliable handling of UTF8 characters
@@ -165,13 +166,13 @@ sub _build_auth_client {
         authorize_url_base      => 'https://accounts.google.com/o/oauth2/auth',
         scope                   => 'https://www.google.com/fusiontables/api/query',        
     );
-    foreach( qw/refresh_token access_code access_token/ ){
-        $client_params{$_} = $self->{$_} if $self->{$_};
+    foreach( qw/refresh_token access_code access_token keep_alive/ ){
+        $client_params{$_} = $self->$_ if defined $self->$_;
     }
     $client_params{id}      = $self->client_id      if $self->client_id;
     $client_params{secret}  = $self->client_secret  if $self->client_secret;
     
-    print "Initialising Client with:\n".  Dump( \%client_params );
+    # $self->logger->debug( "Initialising Client with:\n".  Dump( \%client_params ) );
     my $client = Net::OAuth2::Client->new( %client_params );
     return $client;
 }

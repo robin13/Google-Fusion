@@ -3,7 +3,6 @@
 #
 use strict;
 use warnings;
-use utf8;
 use YAML qw/LoadFile DumpFile Dump/;
 use Net::OAuth2::Client 0.09;
 use Getopt::Long;
@@ -13,6 +12,7 @@ use Term::ReadLine;
 use File::HomeDir;
 use Carp;
 use Try::Tiny;
+use Time::HiRes qw/time/;
 
 my %params;
 GetOptions( \%params,
@@ -58,6 +58,7 @@ try{
 my $term = Term::ReadLine->new('Fusion');
 my $prompt = "fusion> ";
 my $OUT = $term->OUT || \*STDOUT;
+binmode $OUT, ':utf8';
 my $command = '';
 
 # Now loop handling the commands
@@ -73,9 +74,18 @@ while ( defined ( $command = $term->readline( $prompt ) ) ) {
             last COMMAND;
         }
     }else{
-        # TODO: RCL 2011-09-09 Time how long an exeuction takes
+        # Time the query
+        my $query_start = time(); # 
         my @rows = $fusion->query( $command );
+        my $query_time = time - $query_start;
+
+        # Print the result
+        my $num_rows = scalar( @rows ) - ( $fusion->headers ? 1 : 0 );
         print_rows( $OUT, \@rows );
+        printf "%s line%s in %0.5fs\n",
+            $num_rows,
+            ( $num_rows > 1 ? 's' : '' ),
+            $query_time;
     }
 }
 # If exit was with [ctrl]-d, then there will be no last command, so add a newline.
@@ -113,11 +123,12 @@ sub print_rows {
 
     foreach my $rownum( 0 .. scalar( @{ $rows } ) - 1 ){
         my $row = $rows->[$rownum];
-        my @cleaned_row;
-        foreach( 0 .. $columns - 1 ){
-            push( @cleaned_row, $row->[$_] || '' );
-        }
-        printf $fh $fmt, @cleaned_row;
+        #my @cleaned_row;
+        #foreach( 0 .. $columns - 1 ){
+        #    push( @cleaned_row, $row->[$_] || '' );
+        #}
+        #printf $fh $fmt, @cleaned_row;
+        printf $fh $fmt, @{ $row };
 
         # print out a separator for the header
         if( $rownum == 0 ){
