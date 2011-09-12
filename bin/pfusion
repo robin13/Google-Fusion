@@ -4,7 +4,6 @@
 use strict;
 use warnings;
 use YAML qw/LoadFile DumpFile Dump/;
-use Net::OAuth2::Client 0.09;
 use Getopt::Long;
 use File::Spec::Functions qw/catfile/;
 use Google::Fusion;
@@ -12,7 +11,6 @@ use Term::ReadLine;
 use File::HomeDir;
 use Carp;
 use Try::Tiny;
-use Time::HiRes qw/time/;
 
 my %params;
 GetOptions( \%params,
@@ -74,18 +72,18 @@ while ( defined ( $command = $term->readline( $prompt ) ) ) {
             last COMMAND;
         }
     }else{
-        # Time the query
-        my $query_start = time(); # 
-        my @rows = $fusion->query( $command );
-        my $query_time = time - $query_start;
+        my $result = $fusion->query( $command );
+        #print Dump( $result );
+        my @rows = @{ $result->rows };
 
         # Print the result
         my $num_rows = scalar( @rows ) - ( $fusion->headers ? 1 : 0 );
         print_rows( $OUT, \@rows );
-        printf "%s line%s in %0.5fs\n",
-            $num_rows,
-            ( $num_rows > 1 ? 's' : '' ),
-            $query_time;
+        printf "%s line%s in %0.4fs (auth: %0.4fs)\n",
+            $result->num_rows,
+            ( $result->num_rows > 1 ? 's' : '' ),
+            $result->total_time,
+            $result->auth_time;
     }
 }
 # If exit was with [ctrl]-d, then there will be no last command, so add a newline.

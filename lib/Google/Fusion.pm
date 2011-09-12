@@ -8,7 +8,9 @@ use URL::Encode qw/url_encode/;
 use YAML;
 use Carp;
 use Net::OAuth2::Client 0.09; 
+use Google::Fusion::Result;
 use Text::CSV;
+use Time::HiRes qw/time/;
 
 =head1 NAME
 
@@ -70,6 +72,16 @@ Refresh token, aquired during the authorization process
 
 A temporary access token aquired during the authorization process
 
+=head2 keep_alive
+
+Use keep_alive for connections - this will make the application /much/ more responsive.
+Default: 1
+
+=head2 headers
+
+Responses passed with headers.
+Default: 1
+
 =head access_code
 
 The code returned during the OAuth2 authorization process with which access_token and refresh_token are aquired.
@@ -101,7 +113,7 @@ has 'auth_client'   => ( is => 'ro',                required => 1, lazy => 1,
 =head2 query
 
 Submit a (Googley) SQL query.  Single argument is the SQL.
-Return value is the decoded content of the response.
+Return value is a C<Google::Fusion::Result> object
 
 Example:
 
@@ -115,6 +127,13 @@ sub query {
     if( $sql !~ m/^(show|describe|create|select|insert|update|delete|drop)/i ){
         die( "That doesn't look like a valid (Fusion) SQL statement...\n" );
     }
+   
+    # Get a valid access_token before timing the query time
+    my $auth_time_start = time();
+    $self->auth_client->access_token_object->valid_access_token();
+    my $auth_time = time() - $auth_time_start;
+
+    my $query_start = time();
     my $response = $self->auth_client->post( 
         'https://www.google.com/fusiontables/api/query',
         HTTP::Headers->new( Content_Type => 'application/x-www-form-urlencoded' ),
@@ -123,37 +142,50 @@ sub query {
             ( $self->headers ? 'true' : 'false' ),
             ),
         );
-    
-    if( not $response->is_success ){
+    my $query_time = time() - $query_start;
+    my $result = Google::Fusion::Result->new(
+        query       => $sql,
+        response    => $response,
+        query_time  => $query_time,
+        auth_time   => $auth_time,
+        total_time  => $query_time + $auth_time,
+        );
+
+    if( $response->is_success ){
         # TODO: RCL 2011-09-08 Parse the actual error message from the response
         # TODO: RCL 2011-09-08 Refresh access_key if it was invalid, or move that
         # action to the Client?
-        croak( "Query failed\n" .
-            "Response: " . $response->decoded_content() . "\n" .
-            Dump( $response )
-            );
-    }
 
-    my $data = $response->decoded_content();
+        my $data = $response->decoded_content();
     
-    my @rows;
-    my $csv = Text::CSV->new ( { 
-        binary      => 1,  # Reliable handling of UTF8 characters
-        escape_char => '"',
-        quote_char  => '"',
-        } ) or croak( "Cannot use CSV: ".Text::CSV->error_diag () );
+        my $csv = Text::CSV->new ( { 
+            binary      => 1,  # Reliable handling of UTF8 characters
+            escape_char => '"',
+            quote_char  => '"',
+            } ) or croak( "Cannot use CSV: ".Text::CSV->error_diag () );
  
-    my $got_header = ( $self->headers ? 0 : 1 );
-    LINE:
-    foreach my $line( split( "\n", $data ) ) {
-        if( not $csv->parse( $line ) ){
-            croak( "Could not parse line:\n$line\n" );
+        my $got_header = ( $self->headers ? 0 : 1 );
+        my @rows;
+        LINE:
+        foreach my $line( split( "\n", $data ) ) {
+            if( not $csv->parse( $line ) ){
+                croak( "Could not parse line:\n$line\n" );
+            }
+            my @columns = $csv->fields();
+            if( not $got_header ){
+                $result->columns( \@columns );
+                $got_header = 1;
+            }else{
+                if( not $result->num_columns ){
+                    $result->num_columns( scalar( @columns ) );
+                }
+                push( @rows, \@columns );
+            }
         }
-        my @columns = $csv->fields();
-        push @rows, \@columns;
+        $result->rows( \@rows );
+        $csv->eof or $csv->error_diag();
     }
-    $csv->eof or $csv->error_diag();
-    return @rows;
+    return $result;
 }
 
 # Local method to build the auth_client if it wasn't passed
