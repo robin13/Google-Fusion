@@ -68,9 +68,11 @@ while ( defined ( $command = $term->readline( $prompt ) ) ) {
     }
     $term->addhistory($command); 
     if( $command =~ m/^\.(.*)$/ or $command =~ m/^(help)$/i ){
-        if( not local_command( $1 ) ){
+        my $rtn = local_command( $1 );
+        if( not $rtn ){
             last COMMAND;
         }
+
     }else{
         my $result = $fusion->query( $command );
         #print Dump( $result );
@@ -143,6 +145,10 @@ sub local_command {
         return 0;
     }elsif( $command =~ m/^help$/i ){
         print_local_help();
+    }elsif( $command =~ m/^source (.+)$/ ){
+        foreach my $result( @{ local_source( $1 ) } ){
+            printf "Success: %s\n", $result->query;
+        }
     }else{
         print "I don't know how to do that...\n";
     }
@@ -154,10 +160,28 @@ sub print_local_help {
     my %commands = (
         help    => 'show the internal commands',
         quit    => 'exit the application',
+        source  => 'read in a source file',
         'exit'  => 'exit the application',
         );
     # All local commands start with a '.'
     foreach( sort keys %commands ){
         printf ".%-10s %s\n", $_, $commands{$_};
     }
+}
+
+sub local_source {
+    my $source_file = shift;
+    printf "Reading source file: %s\n", $source_file;
+    open( my $fh, '<', $source_file ) or die( $! );
+    my @lines;
+    while( my $line = readline( $fh ) ){
+        chomp( $line );
+        push( @lines, $line );
+    }
+    close $fh;
+    my @results;
+    foreach( @lines ){
+        push( @results, $fusion->query( $_ ) );
+    }
+    return \@results;
 }
