@@ -59,6 +59,8 @@ has 'query'         => ( is => 'ro', isa => 'Str',                required => 1 
 has 'response'      => ( is => 'ro', isa => 'HTTP::Response',     required => 1                       );
 has 'num_columns'   => ( is => 'rw', isa => 'Int',                required => 1, default => 0         );
 has 'num_rows'      => ( is => 'rw', isa => 'Int',                required => 1, default => 0         );
+has 'max_lengths'   => ( is => 'rw', isa => 'ArrayRef',           required => 1, default => sub{ [] } );
+has 'has_headers'   => ( is => 'rw', isa => 'Bool',               required => 1, default => 0         );
 has 'query_time'    => ( is => 'rw', isa => 'Num',                required => 1, default => 0         );
 has 'auth_time'     => ( is => 'rw', isa => 'Num',                required => 1, default => 0         );
 has 'total_time'    => ( is => 'rw', isa => 'Num',                required => 1, default => 0         );

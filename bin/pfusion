@@ -20,7 +20,14 @@ GetOptions( \%params,
     'refresh_token=s',
     'access_token=s',
     'config=s',
+    'interactive',
     );
+
+# Default params
+%params = (
+    token_store  => catfile( File::HomeDir->my_home(), '.fusion.auth' ),
+    interactive => 1,
+    %params );
 
 # Clean out any undefined values
 %params = map{ $_ => $params{$_} }
@@ -31,7 +38,6 @@ GetOptions( \%params,
 my $conf_file = $params{config} || catfile( File::HomeDir->my_home() , '.fusion' );
 delete( $params{config} );
 if( -f $conf_file ){
-    printf "Trying to load config from %s\n", $conf_file;
     my $file_params = LoadFile( $conf_file );
     %params = (
         %{ $file_params },
@@ -79,13 +85,8 @@ while ( defined ( $command = $term->readline( $prompt ) ) ) {
         my @rows = @{ $result->rows };
 
         # Print the result
-        my $num_rows = scalar( @rows ) - ( $fusion->headers ? 1 : 0 );
-        print_rows( $OUT, \@rows );
-        printf "%s line%s in %0.4fs (auth: %0.4fs)\n",
-            $result->num_rows,
-            ( $result->num_rows > 1 ? 's' : '' ),
-            $result->total_time,
-            $result->auth_time;
+        print_result( $OUT, $result );
+        
     }
 }
 # If exit was with [ctrl]-d, then there will be no last command, so add a newline.
@@ -93,49 +94,37 @@ printf "%sExiting fusion.\n", ( $command ? '' : "\n" );
 exit( 0 );
 
 # Accepts a filehandle and a reference to an array of array references
-sub print_rows {
+sub print_result {
     my $fh = shift;
-    my $rows = shift;
-    if( scalar( @{ $rows } ) == 0 ){
-        return;
-    }
+    my $result = shift;
 
-    my $columns = scalar( @{ $rows->[0] } );
+    print "\n";
 
-    # Find the largest element in each row
-    # TODO: RCL 2011-09-09 This won't handle elements with newlines gracefully...
-    my %max;
-    foreach my $row( @{ $rows } ){
-        foreach( 0 .. $columns - 1 ){
-            if( not $max{$_} or $max{$_} < length( $row->[$_] ) ){
-                $max{$_} = ( $row->[$_] ? length( $row->[$_] ) : 0 );
-            }
-        }
-    }
-    
     my $fmt = ' | ';
-    foreach( 0 .. $columns - 1 ){
+    foreach( 0 .. $result->num_columns - 1 ){
         # TODO: RCL 2011-09-08 Add some handling here so that if recognized that all elements of
         # a column are numbers they be right justified
-        $fmt .= '%-' . $max{$_} . 's | ';
+        $fmt .= '%-' . $result->max_lengths->[$_] . 's | ';
     }
     $fmt .= "\n";
+    
+    if( $result->has_headers ){
+        # print out the columns, and the separator
+        printf $fh $fmt, @{ $result->columns };
+        printf $fh $fmt, map{ '=' x $result->max_lengths->[$_] } 0 .. $result->num_columns - 1;
+    }
 
-    foreach my $rownum( 0 .. scalar( @{ $rows } ) - 1 ){
-        my $row = $rows->[$rownum];
-        #my @cleaned_row;
-        #foreach( 0 .. $columns - 1 ){
-        #    push( @cleaned_row, $row->[$_] || '' );
-        #}
-        #printf $fh $fmt, @cleaned_row;
+    foreach my $rownum( 0 .. scalar( @{ $result->rows } ) - 1 ){
+        my $row = $result->rows->[$rownum];
         printf $fh $fmt, @{ $row };
 
-        # print out a separator for the header
-        if( $rownum == 0 ){
-            # TODO: RCL 2011-09-08 Just print a line of '-'
-            printf $fh $fmt, map{ '=' x $max{$_} } 0 .. $columns - 1;
-        }
     }
+    print "\n";
+    printf "%s line%s in %0.4fs (auth: %0.4fs)\n",
+        $result->num_rows,
+        ( $result->num_rows > 1 ? 's' : '' ),
+        $result->total_time,
+        $result->auth_time;
 }
 
 # Handle local commands (stuff which is not sent to the Fusion server

@@ -101,6 +101,7 @@ has 'client_secret' => ( is => 'ro', isa => 'Str',                              
 has 'refresh_token' => ( is => 'ro', isa => 'Str',                                  );
 has 'access_token'  => ( is => 'ro', isa => 'Str',                                  );
 has 'access_code'   => ( is => 'ro', isa => 'Str',                                  );
+has 'token_store'   => ( is => 'ro', isa => 'Str',                                  );
 has 'headers'       => ( is => 'ro', isa => 'Bool', required => 1, default => 1,    );
 has 'keep_alive'    => ( is => 'ro', isa => 'Bool', required => 1, default => 1,    );
 has 'auth_client'   => ( is => 'ro',                required => 1, lazy => 1,
@@ -166,12 +167,21 @@ sub query {
  
         my $got_header = ( $self->headers ? 0 : 1 );
         my @rows;
+        my @max;
         LINE:
         foreach my $line( split( "\n", $data ) ) {
             if( not $csv->parse( $line ) ){
                 croak( "Could not parse line:\n$line\n" );
             }
             my @columns = $csv->fields();
+    
+            # Find the max length of each column
+            # TODO: RCL 2011-09-09 This won't handle elements with newlines gracefully...
+            foreach( 0 .. $#columns ){
+                if( ( not $max[$_] ) or ( length( $columns[$_] ) > $max[$_] ) ){
+                    $max[$_] = length( $columns[$_] );
+                }
+            }
             if( not $got_header ){
                 $result->columns( \@columns );
                 $got_header = 1;
@@ -183,6 +193,8 @@ sub query {
             }
         }
         $result->rows( \@rows );
+        $result->max_lengths( \@max );
+        $result->has_headers( $self->headers );
         $csv->eof or $csv->error_diag();
     }
     return $result;
@@ -198,7 +210,7 @@ sub _build_auth_client {
         authorize_url_base      => 'https://accounts.google.com/o/oauth2/auth',
         scope                   => 'https://www.google.com/fusiontables/api/query',        
     );
-    foreach( qw/refresh_token access_code access_token keep_alive/ ){
+    foreach( qw/refresh_token access_code access_token keep_alive token_store/ ){
         $client_params{$_} = $self->$_ if defined $self->$_;
     }
     $client_params{id}      = $self->client_id      if $self->client_id;
