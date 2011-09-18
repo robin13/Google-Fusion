@@ -5,12 +5,16 @@ use Moose;
 use LWP::UserAgent;
 use HTTP::Request;
 use URL::Encode qw/url_encode/;
-use YAML;
+use YAML qw/LoadFile DumpFile Dump/;
 use Carp;
 use Net::OAuth2::Client 0.09; 
 use Google::Fusion::Result;
 use Text::CSV;
 use Time::HiRes qw/time/;
+use Try::Tiny;
+use Digest::SHA qw/sha256_hex/;
+use File::Spec::Functions;
+use IO::String;
 
 =head1 NAME
 
@@ -18,11 +22,11 @@ Google::Fusion - Interface to the Google Fusion Tables API
 
 =head1 VERSION
 
-Version 0.01
+Version 0.02
 
 =cut
 
-our $VERSION = '0.01';
+our $VERSION = '0.02';
 
 
 =head1 SYNOPSIS
@@ -101,6 +105,7 @@ has 'client_secret' => ( is => 'ro', isa => 'Str',                              
 has 'refresh_token' => ( is => 'ro', isa => 'Str',                                  );
 has 'access_token'  => ( is => 'ro', isa => 'Str',                                  );
 has 'access_code'   => ( is => 'ro', isa => 'Str',                                  );
+has 'query_cache'   => ( is => 'ro', isa => 'Str',                                  );
 has 'token_store'   => ( is => 'ro', isa => 'Str',                                  );
 has 'headers'       => ( is => 'ro', isa => 'Bool', required => 1, default => 1,    );
 has 'keep_alive'    => ( is => 'ro', isa => 'Bool', required => 1, default => 1,    );
@@ -135,14 +140,9 @@ sub query {
     my $auth_time = time() - $auth_time_start;
 
     my $query_start = time();
-    my $response = $self->auth_client->post( 
-        'https://www.google.com/fusiontables/api/query',
-        HTTP::Headers->new( Content_Type => 'application/x-www-form-urlencoded' ),
-        sprintf( 'sql=%s&hdrs=%s',
-            url_encode( $sql ),
-            ( $self->headers ? 'true' : 'false' ),
-            ),
-        );
+    
+    my $response = $self->query_or_cache( $sql );
+
     my $query_time = time() - $query_start;
     my $result = Google::Fusion::Result->new(
         query       => $sql,
@@ -164,38 +164,33 @@ sub query {
             escape_char => '"',
             quote_char  => '"',
             } ) or croak( "Cannot use CSV: ".Text::CSV->error_diag () );
- 
-        my $got_header = ( $self->headers ? 0 : 1 );
-        my @rows;
+        my $io = IO::String->new( $data );
+        my $parsed_data = $csv->getline_all( $io );
+        $csv->eof or $csv->error_diag();
+
+
+        # Find the max length of each column
+        # TODO: RCL 2011-09-09 This won't handle elements with newlines gracefully...
         my @max;
-        LINE:
-        foreach my $line( split( "\n", $data ) ) {
-            if( not $csv->parse( $line ) ){
-                croak( "Could not parse line:\n$line\n" );
-            }
-            my @columns = $csv->fields();
-    
-            # Find the max length of each column
-            # TODO: RCL 2011-09-09 This won't handle elements with newlines gracefully...
-            foreach( 0 .. $#columns ){
-                if( ( not $max[$_] ) or ( length( $columns[$_] ) > $max[$_] ) ){
-                    $max[$_] = length( $columns[$_] );
+        foreach my $row_idx( 0 .. scalar( @{ $parsed_data } ) - 1 ){
+            foreach my $col_idx ( 0 .. scalar( @{ $parsed_data->[0] } ) - 1 ){
+                if( ( not $max[$col_idx] ) or ( length( $parsed_data->[$row_idx][$col_idx] ) > $max[$col_idx] ) ){
+                    $max[$col_idx] = length( $parsed_data->[$row_idx][$col_idx] );
                 }
-            }
-            if( not $got_header ){
-                $result->columns( \@columns );
-                $got_header = 1;
-            }else{
-                if( not $result->num_columns ){
-                    $result->num_columns( scalar( @columns ) );
-                }
-                push( @rows, \@columns );
             }
         }
-        $result->rows( \@rows );
+
+
+        if( $self->headers ){
+            $result->columns( shift( @{ $parsed_data } ) );
+        }
+        $result->rows( $parsed_data );
+        $result->has_headers( $self->headers );
+        if( not $result->num_columns ){
+            $result->num_columns( scalar( @{ $parsed_data->[0] } ) );
+        }
         $result->max_lengths( \@max );
         $result->has_headers( $self->headers );
-        $csv->eof or $csv->error_diag();
     }
     return $result;
 }
@@ -219,6 +214,34 @@ sub _build_auth_client {
     # $self->logger->debug( "Initialising Client with:\n".  Dump( \%client_params ) );
     my $client = Net::OAuth2::Client->new( %client_params );
     return $client;
+}
+
+sub query_or_cache {
+    my $self = shift;
+    my $sql = shift;
+    my $digest = sha256_hex( $sql );
+    printf "Digest: %s\n", $digest;
+    my $cache_file = catfile( $self->query_cache, $digest );
+    
+    my $response = undef;
+    if( $self->query_cache ){
+        if( -f $cache_file ){
+            $response = LoadFile( $cache_file );
+        }
+    }
+    if( not $response ){
+        $response = $self->auth_client->post( 'https://www.google.com/fusiontables/api/query',
+            HTTP::Headers->new( Content_Type => 'application/x-www-form-urlencoded' ),
+            sprintf( 'sql=%s&hdrs=%s',
+                url_encode( $sql ),
+                ( $self->headers ? 'true' : 'false' ),
+                ),
+            );
+        if( $self->query_cache ){
+            DumpFile( $cache_file, $response );
+        }
+    }
+    return $response;
 }
 
 

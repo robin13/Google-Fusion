@@ -26,6 +26,7 @@ GetOptions( \%params,
 # Default params
 %params = (
     token_store  => catfile( File::HomeDir->my_home(), '.fusion.auth' ),
+    query_cache  => '/tmp/query_cache',
     interactive => 1,
     %params );
 
