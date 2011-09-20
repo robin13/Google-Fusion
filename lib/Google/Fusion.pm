@@ -158,7 +158,7 @@ sub query {
         # action to the Client?
 
         my $data = $response->decoded_content();
-    
+        print $data; 
         my $csv = Text::CSV->new ( { 
             binary      => 1,  # Reliable handling of UTF8 characters
             escape_char => '"',
