@@ -158,7 +158,7 @@ sub query {
         # action to the Client?
 
         my $data = $response->decoded_content();
-        print $data; 
+        # print $data; 
         my $csv = Text::CSV->new ( { 
             binary      => 1,  # Reliable handling of UTF8 characters
             escape_char => '"',
@@ -220,7 +220,7 @@ sub query_or_cache {
     my $self = shift;
     my $sql = shift;
     my $digest = sha256_hex( $sql );
-    printf "Digest: %s\n", $digest;
+    # printf "Digest: %s\n", $digest;
     my $cache_file = catfile( $self->query_cache, $digest );
     
     my $response = undef;
