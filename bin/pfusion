@@ -11,6 +11,8 @@ use Term::ReadLine;
 use File::HomeDir;
 use Carp;
 use Try::Tiny;
+use Text::Table;
+use Encode;
 
 my %params;
 GetOptions( \%params,
@@ -81,7 +83,6 @@ while ( defined ( $command = $term->readline( $prompt ) ) ) {
 
     }else{
         my $result = $fusion->query( $command );
-        #print Dump( $result );
         my @rows = @{ $result->rows };
 
         # Print the result
@@ -98,33 +99,58 @@ sub print_result {
     my $fh = shift;
     my $result = shift;
 
-    print "\n";
+    my $output = '';
 
-    my $fmt = ' | ';
-    foreach( 0 .. $result->num_columns - 1 ){
-        # TODO: RCL 2011-09-08 Add some handling here so that if recognized that all elements of
-        # a column are numbers they be right justified
-        $fmt .= '%-' . $result->max_lengths->[$_] . 's | ';
-    }
-    $fmt .= "\n";
+    # A Text::Table separator
+    my $sep = { 
+        is_sep => 1,
+        title  => ' | ',
+        body   => ' | ',
+    };
+
+    # Prepare the columns with separators
+    my @columns = ( '', @{ $result->columns } );
+    @columns = map { $_, $sep } @columns;
+    pop( @columns );
     
+    # Set up the table
+    my $tb = Text::Table->new( @columns );
+    
+    # Add an index to each row, and add the data to the table
+    my @rows = @{ $result->rows };
+    foreach my $idx( 0 .. $#rows ){
+        $tb->add( $idx + 1, @{ $rows[$idx] } );
+    }
+    my $rule  = $tb->rule( '-', '+' );
+   
+    # Add the table headers
     if( $result->has_headers ){
-        # print out the columns, and the separator
-        printf $fh $fmt, @{ $result->columns };
-        printf $fh $fmt, map{ '=' x $result->max_lengths->[$_] } 0 .. $result->num_columns - 1;
+        $output .= $tb->title;
+        $output .= $tb->rule( '=', '+' );
     }
 
-    foreach my $rownum( 0 .. scalar( @{ $result->rows } ) - 1 ){
-        my $row = $result->rows->[$rownum];
-        printf $fh $fmt, @{ $row };
-
+    # Output the actual table
+    my @lines = $tb->body;
+    foreach( 0 .. $#lines ){
+        # Because we add an index to the rows, the first column will always have exactly 
+        # either the index, or nothing in it.  Add a rule before.
+        if( $_ > 0 and $lines[$_] !~ m/^\s+\|/ ){
+            $output .= $rule;
+        }
+        $output .= $lines[$_];
     }
-    print "\n";
-    printf "%s line%s in %0.4fs (auth: %0.4fs)\n",
+    $output .= $rule;
+    
+    # Somehow the Text::Table breaks the encoding again... :-/
+    $output = encode( 'utf8', $output );
+
+    # Add some information about the time taken
+    $output .= sprintf "%s line%s in %0.4fs (auth: %0.4fs)\n",
         $result->num_rows,
         ( $result->num_rows > 1 ? 's' : '' ),
         $result->total_time,
         $result->auth_time;
+    print $output;
 }
 
 # Handle local commands (stuff which is not sent to the Fusion server

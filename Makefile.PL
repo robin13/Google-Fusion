@@ -14,6 +14,7 @@ WriteMakefile(
     PL_FILES            => {},
     PREREQ_PM => {
         'Test::More'		=> 0,
+	'Text::Table'		=> 0,
 	'Moose'			=> 0,
 	'LWP::UserAgent'	=> 0,
 	'URL::Encode'		=> 0,
