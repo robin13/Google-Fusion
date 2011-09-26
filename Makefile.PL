@@ -22,7 +22,7 @@ WriteMakefile(
 	'YAML'			=> 0,
 	'Carp'			=> 0,
 	'Text::CSV'		=> 0,
-	'Net::OAuth2::Client'	=> 0.09,
+	'Net::OAuth2::Client'	=> 0.10,
 	'File::HomeDir'		=> 0,
     },
     dist                => { COMPRESS => 'gzip -9f', SUFFIX => 'gz', },

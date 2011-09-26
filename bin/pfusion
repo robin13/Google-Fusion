@@ -100,7 +100,7 @@ sub print_result {
     my $result = shift;
 
     my $output = '';
-
+    
     # A Text::Table separator
     my $sep = { 
         is_sep => 1,
@@ -143,11 +143,15 @@ sub print_result {
     
     # Somehow the Text::Table breaks the encoding again... :-/
     $output = encode( 'utf8', $output );
+    
+    if( $result->error ){
+        $output .= sprintf "Error: %s\n", $result->error;
+    }
 
     # Add some information about the time taken
     $output .= sprintf "%s line%s in %0.4fs (auth: %0.4fs)\n",
         $result->num_rows,
-        ( $result->num_rows > 1 ? 's' : '' ),
+        ( $result->num_rows != 1 ? 's' : '' ),
         $result->total_time,
         $result->auth_time;
     print $output;
@@ -164,6 +168,8 @@ sub local_command {
         foreach my $result( @{ local_source( $1 ) } ){
             printf "Success: %s\n", $result->query;
         }
+    }elsif( $command =~ m/^refresh_token$/i ){
+        $fusion->get_fresh_access_token();
     }else{
         print "I don't know how to do that...\n";
     }
@@ -173,14 +179,15 @@ sub local_command {
 # The user called the local help command... give them some help baby!
 sub print_local_help {
     my %commands = (
-        help    => 'show the internal commands',
-        quit    => 'exit the application',
-        source  => 'read in a source file',
-        'exit'  => 'exit the application',
+        help            => 'show the internal commands',
+        quit            => 'exit the application',
+        source          => 'read in a source file',
+        refresh_token   => 'refresh access token',
+        'exit'          => 'exit the application',
         );
     # All local commands start with a '.'
     foreach( sort keys %commands ){
-        printf ".%-10s %s\n", $_, $commands{$_};
+        printf ".%-14s %s\n", $_, $commands{$_};
     }
 }
 

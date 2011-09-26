@@ -7,7 +7,7 @@ use HTTP::Request;
 use URL::Encode qw/url_encode/;
 use YAML qw/LoadFile DumpFile Dump/;
 use Carp;
-use Net::OAuth2::Client 0.09; 
+use Net::OAuth2::Client 0.10; 
 use Google::Fusion::Result;
 use Text::CSV;
 use Time::HiRes qw/time/;
@@ -114,6 +114,27 @@ has 'auth_client'   => ( is => 'ro',                required => 1, lazy => 1,
     builder     => '_build_auth_client',
     );
 
+# Local method to build the auth_client if it wasn't passed
+sub _build_auth_client {
+    my $self = shift;
+
+    my %client_params = (
+        site_url_base           => 'https://accounts.google.com/o/oauth2/auth',
+        access_token_url_base   => 'https://accounts.google.com/o/oauth2/token',
+        authorize_url_base      => 'https://accounts.google.com/o/oauth2/auth',
+        scope                   => 'https://www.google.com/fusiontables/api/query',        
+    );
+    foreach( qw/refresh_token access_code access_token keep_alive token_store/ ){
+        $client_params{$_} = $self->$_ if defined $self->$_;
+    }
+    $client_params{id}      = $self->client_id      if $self->client_id;
+    $client_params{secret}  = $self->client_secret  if $self->client_secret;
+    
+    # $self->logger->debug( "Initialising Client with:\n".  Dump( \%client_params ) );
+    my $client = Net::OAuth2::Client->new( %client_params );
+    return $client;
+}
+
 =head1 SUBROUTINES/METHODS
 
 =head2 query
@@ -126,6 +147,11 @@ Example:
     my $text = $fusion->query( 'SELECT * FROM 123456' );
 
 =cut
+sub get_fresh_access_token {
+    my $self    = shift;
+    $self->auth_client->get_fresh_access_token();
+}
+
 sub query {
     my $self    = shift;
     my $sql     = shift;
@@ -152,7 +178,10 @@ sub query {
         total_time  => $query_time + $auth_time,
         );
 
-    if( $response->is_success ){
+    if( not $response->is_success ){
+        $result->error( sprintf "%s (%u)", $response->message, $response->code );
+    }else{
+        # Response was a success
         # TODO: RCL 2011-09-08 Parse the actual error message from the response
         # TODO: RCL 2011-09-08 Refresh access_key if it was invalid, or move that
         # action to the Client?
@@ -195,27 +224,6 @@ sub query {
     return $result;
 }
 
-# Local method to build the auth_client if it wasn't passed
-sub _build_auth_client {
-    my $self = shift;
-
-    my %client_params = (
-        site_url_base           => 'https://accounts.google.com/o/oauth2/auth',
-        access_token_url_base   => 'https://accounts.google.com/o/oauth2/token',
-        authorize_url_base      => 'https://accounts.google.com/o/oauth2/auth',
-        scope                   => 'https://www.google.com/fusiontables/api/query',        
-    );
-    foreach( qw/refresh_token access_code access_token keep_alive token_store/ ){
-        $client_params{$_} = $self->$_ if defined $self->$_;
-    }
-    $client_params{id}      = $self->client_id      if $self->client_id;
-    $client_params{secret}  = $self->client_secret  if $self->client_secret;
-    
-    # $self->logger->debug( "Initialising Client with:\n".  Dump( \%client_params ) );
-    my $client = Net::OAuth2::Client->new( %client_params );
-    return $client;
-}
-
 sub query_or_cache {
     my $self = shift;
     my $sql = shift;
@@ -230,13 +238,24 @@ sub query_or_cache {
         }
     }
     if( not $response ){
-        $response = $self->auth_client->post( 'https://www.google.com/fusiontables/api/query',
+        my @post_args =  ( 'https://www.google.com/fusiontables/api/query',
             HTTP::Headers->new( Content_Type => 'application/x-www-form-urlencoded' ),
             sprintf( 'sql=%s&hdrs=%s',
                 url_encode( $sql ),
                 ( $self->headers ? 'true' : 'false' ),
                 ),
             );
+
+
+        $response = $self->auth_client->post( @post_args );
+        # If the response was not Unauthorized, most likely is that the token is invalid
+        # Invalidate the current token, and try again
+        if( $response->code == 401 and $response->message eq 'Unauthorized' ){
+            # Make the token expire, so a new one is requested
+            $self->auth_client->get_fresh_access_token();
+            $response = $self->auth_client->post( @post_args );
+        }
+
         if( $self->query_cache ){
             DumpFile( $cache_file, $response );
         }

@@ -57,6 +57,7 @@ Number of rows this result has (excluding headers)
 
 has 'query'         => ( is => 'ro', isa => 'Str',                required => 1                       );
 has 'response'      => ( is => 'ro', isa => 'HTTP::Response',     required => 1                       );
+has 'error'         => ( is => 'rw', isa => 'Str',                                                    );
 has 'num_columns'   => ( is => 'rw', isa => 'Int',                required => 1, default => 0         );
 has 'num_rows'      => ( is => 'rw', isa => 'Int',                required => 1, default => 0         );
 has 'max_lengths'   => ( is => 'rw', isa => 'ArrayRef',           required => 1, default => sub{ [] } );
