@@ -7,7 +7,7 @@ use HTTP::Request;
 use URL::Encode qw/url_encode/;
 use YAML qw/LoadFile DumpFile Dump/;
 use Carp;
-use Net::OAuth2::Client 0.10; 
+use Net::OAuth2::Moosey::Client; 
 use Google::Fusion::Result;
 use Text::CSV;
 use Time::HiRes qw/time/;
@@ -22,11 +22,11 @@ Google::Fusion - Interface to the Google Fusion Tables API
 
 =head1 VERSION
 
-Version 0.02
+Version 0.03
 
 =cut
 
-our $VERSION = '0.02';
+our $VERSION = '0.03';
 
 
 =head1 SYNOPSIS
@@ -92,7 +92,7 @@ The code returned during the OAuth2 authorization process with which access_toke
 
 =head auth_client
 
-A Net::OAuth2::Client object with which authenticated requests are made.  If you are running 
+A Net::OAuth2::Moosey::Client object with which authenticated requests are made.  If you are running 
 in application mode (interactive), then you can accept the default.
 If you already have an authenticated client, then initialise with it.
 If you have some required parameters (access_token, refresh_token or access_code), but no client
@@ -110,7 +110,7 @@ has 'token_store'   => ( is => 'ro', isa => 'Str',                              
 has 'headers'       => ( is => 'ro', isa => 'Bool', required => 1, default => 1,    );
 has 'keep_alive'    => ( is => 'ro', isa => 'Bool', required => 1, default => 1,    );
 has 'auth_client'   => ( is => 'ro',                required => 1, lazy => 1,
-    isa         => 'Net::OAuth2::Client',
+    isa         => 'Net::OAuth2::Moosey::Client',
     builder     => '_build_auth_client',
     );
 
@@ -124,14 +124,12 @@ sub _build_auth_client {
         authorize_url_base      => 'https://accounts.google.com/o/oauth2/auth',
         scope                   => 'https://www.google.com/fusiontables/api/query',        
     );
-    foreach( qw/refresh_token access_code access_token keep_alive token_store/ ){
+    foreach( qw/client_id client_secret refresh_token access_code access_token keep_alive token_store/ ){
         $client_params{$_} = $self->$_ if defined $self->$_;
     }
-    $client_params{id}      = $self->client_id      if $self->client_id;
-    $client_params{secret}  = $self->client_secret  if $self->client_secret;
     
     # $self->logger->debug( "Initialising Client with:\n".  Dump( \%client_params ) );
-    my $client = Net::OAuth2::Client->new( %client_params );
+    my $client = Net::OAuth2::Moosey::Client->new( %client_params );
     return $client;
 }
 
