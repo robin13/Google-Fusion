@@ -22,23 +22,28 @@ Google::Fusion - Interface to the Google Fusion Tables API
 
 =head1 VERSION
 
-Version 0.03
+Version 0.04
 
 =cut
 
-our $VERSION = '0.03';
+our $VERSION = '0.04';
 
 
 =head1 SYNOPSIS
 
-Quick summary of what the module does.
+  my $fusion = Google::Fusion->new( 
+    client_id	    => $client_id,
+    client_secret   => $client_secret,
+    token_store	    => $token_store,
+    );
 
-Perhaps a little code snippet.
-
-    use Google::Fusion;
-
-    my $foo = Google::Fusion->new();
-    ...
+  # Get the result for a query
+  my $result = $fusion->query( $sql );
+  
+  # Print out the rows returned
+  foreach( @{ $result->rows } ){
+      print join( ',', @{ $_ } ) . "\n";
+  }
 
 =head1 PARAMS/ACCESSORS
 
@@ -60,43 +65,59 @@ The OAuth2 client will get a valid access_token for you if necessary, and refres
 
 You will be able to make requests as long as the access_token is valid.
 
-=head2 client_id
+=over 2
+
+=item client_id <Str>
 
 The client id of your application.
 
-=head2 client_secret
+=item client_secret <Str>
 
 The secret for your application
 
-=head2 refresh_token
+=item refresh_token <Str>
 
-Refresh token, aquired during the authorization process
+Refresh token.
+Can be defined here, otherwise it will be aquired during the authorization process
 
-=head2 access_token
+=item access_token <Str>
 
 A temporary access token aquired during the authorization process
+Can be defined here, otherwise it will be aquired during the authorization process
 
-=head2 keep_alive
+=item keep_alive <Int>
 
 Use keep_alive for connections - this will make the application /much/ more responsive.
+
 Default: 1
 
-=head2 headers
+=item headers <Bool>
 
 Responses passed with headers.
+
 Default: 1
 
-=head access_code
+=item access_code <Str>
 
 The code returned during the OAuth2 authorization process with which access_token and refresh_token are aquired.
 
-=head auth_client
+=item auth_client
 
 A Net::OAuth2::Moosey::Client object with which authenticated requests are made.  If you are running 
 in application mode (interactive), then you can accept the default.
 If you already have an authenticated client, then initialise with it.
 If you have some required parameters (access_token, refresh_token or access_code), but no client
 object yet, then just define these parameters, and allow the client to be created for you.
+
+=item query_cache <Str>
+
+Path to a directory to use as a query cache.  This can be used to cache your results for blazing
+fast performance, and not actually hitting google for every query when testing, but should not
+be enabled in a productive environment otherwise you will have stale content.
+
+=item token_store <Str>
+
+Path to the token store file to store access/refresh tokens
 
 =cut
 
@@ -138,11 +159,11 @@ sub _build_auth_client {
 =head2 query
 
 Submit a (Googley) SQL query.  Single argument is the SQL.
-Return value is a C<Google::Fusion::Result> object
+Return value is a L<Google::Fusion::Result> object
 
 Example:
 
-    my $text = $fusion->query( 'SELECT * FROM 123456' );
+    my $result = $fusion->query( 'SELECT * FROM 123456' );
 
 =cut
 sub get_fresh_access_token {
@@ -165,7 +186,7 @@ sub query {
 
     my $query_start = time();
     
-    my $response = $self->query_or_cache( $sql );
+    my $response = $self->_query_or_cache( $sql );
 
     my $query_time = time() - $query_start;
     my $result = Google::Fusion::Result->new(
@@ -222,7 +243,8 @@ sub query {
     return $result;
 }
 
-sub query_or_cache {
+# Private method to use cached queries if possible (and desired - the query_cache is defined)
+sub _query_or_cache {
     my $self = shift;
     my $sql = shift;
     my $digest = sha256_hex( $sql );
@@ -282,6 +304,10 @@ You can find documentation for this module with the perldoc command.
 You can also look for information at:
 
 =over 4
+
+=item * Repository on Github
+
+L<https://github.com/robin13/Google-Fusion>
 
 =item * RT: CPAN's request tracker (report bugs here)
 

@@ -9,49 +9,76 @@ Google::Fusion::Result - A Query result
 
 =head1 VERSION
 
-Version 0.01
+Version 0.02
 
 =cut
 
-our $VERSION = '0.01';
+our $VERSION = '0.02';
 
 
 =head1 SYNOPSIS
 
-Quick summary of what the module does.
+  my $fusion = Google::Fusion->new( %fusion_params );
 
-Perhaps a little code snippet.
-
-    use Google::Fusion::Result;
-
-    my $result = Google::Fusion::Result->new();
-    ...
+  # Get the result for a query
+  my $result = $fusion->query( $sql );
+  
+  # Print out the rows returned
+  foreach( @{ $result->rows } ){
+      print join( ',', @{ $_ } ) . "\n";
+  }
 
 =head1 PARAMS/ACCESSORS
 
-=head2 response
+=over 2
 
-The HTTP::Response object associated with the query
-
-=head2 query
+=item query <Str>
 
 The query string
 
-=head2 result
+=item response <HTTP::Response>
 
-ArrayRef of the results
+The response object associated with the query
 
-=head2 headers
+=item error <Str>
 
-Arrayref of the headers
+Error string, if an error occurred
 
-=head2 columns
+=item num_columns <Int>
 
-Number of columns this result has
+Number of columns the result has
 
-=head2 rows
+=item num_rows <Int>
 
-Number of rows this result has (excluding headers)
+Number of rows this result has (excluding headers).
+
+=item max_lengths <ArrayRef[Int]>
+
+Array of the maximum lengths of fields for each column
+
+=item has_headers <Bool>
+
+True if this result has headers
+
+=item query_time <Num>
+
+Seconds (using Time::HiRes) the query took
+
+=item auth_time <Num>
+
+Seconds (using Time::HiRes) the authentication part of the query took
+
+=item total_time <Num>
+
+Total time for the query
+
+=item rows <ArrayRef[ArrayRef]>
+
+The actual results
+
+=item columns <ArrayRef>
+
+The column names (if has_headers is true).
 
 =cut
 
@@ -81,10 +108,6 @@ has 'columns'       => (
     trigger     => sub{ $_[0]->num_columns( scalar( @{ $_[1] } ) ) },
     );
 
-=head1 SUBROUTINES/METHODS
-
-=cut
-
 =head1 AUTHOR
 
 Robin Clarke, C<< <perl at robinclarke.net> >>
@@ -102,4 +125,4 @@ See http://dev.perl.org/licenses/ for more information.
 
 =cut
 
-1; # End of Google::Fusion
+1;
