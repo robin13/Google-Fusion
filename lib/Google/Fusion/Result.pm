@@ -80,6 +80,8 @@ The actual results
 
 The column names (if has_headers is true).
 
+=back
+
 =cut
 
 has 'query'         => ( is => 'ro', isa => 'Str',                required => 1                       );

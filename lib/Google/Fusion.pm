@@ -119,6 +119,8 @@ be enabled in a productive environment otherwise you will have stale content.
 
 Path to the token store file to store access/refresh tokens
 
+=back
+
 =cut
 
 has 'client_id'     => ( is => 'ro', isa => 'Str',                                  );
@@ -166,11 +168,6 @@ Example:
     my $result = $fusion->query( 'SELECT * FROM 123456' );
 
 =cut
-sub get_fresh_access_token {
-    my $self    = shift;
-    $self->auth_client->get_fresh_access_token();
-}
-
 sub query {
     my $self    = shift;
     my $sql     = shift;
@@ -241,6 +238,20 @@ sub query {
         $result->has_headers( $self->headers );
     }
     return $result;
+}
+
+=head2 get_fresh_access_token
+
+Force the OAuth access token to be refreshed
+
+Example:
+
+    $fusion->get_fresh_access_token();
+
+=cut
+sub get_fresh_access_token {
+    my $self    = shift;
+    $self->auth_client->get_fresh_access_token();
 }
 
 # Private method to use cached queries if possible (and desired - the query_cache is defined)
