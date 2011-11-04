@@ -22,11 +22,11 @@ Google::Fusion - Interface to the Google Fusion Tables API
 
 =head1 VERSION
 
-Version 0.04
+Version 0.05
 
 =cut
 
-our $VERSION = '0.04';
+our $VERSION = '0.05';
 
 
 =head1 SYNOPSIS
@@ -67,41 +67,41 @@ You will be able to make requests as long as the access_token is valid.
 
 =over 2
 
-=item client_id <Str>
+=item * client_id <Str>
 
 The client id of your application.
 
-=item client_secret <Str>
+=item * client_secret <Str>
 
 The secret for your application
 
-=item refresh_token <Str>
+=item * refresh_token <Str>
 
 Refresh token.
 Can be defined here, otherwise it will be aquired during the authorization process
 
-=item access_token <Str>
+=item * access_token <Str>
 
 A temporary access token aquired during the authorization process
 Can be defined here, otherwise it will be aquired during the authorization process
 
-=item keep_alive <Int>
+=item * keep_alive <Int>
 
 Use keep_alive for connections - this will make the application /much/ more responsive.
 
 Default: 1
 
-=item headers <Bool>
+=item * headers <Bool>
 
 Responses passed with headers.
 
 Default: 1
 
-=item access_code <Str>
+=item * access_code <Str>
 
 The code returned during the OAuth2 authorization process with which access_token and refresh_token are aquired.
 
-=item auth_client
+=item * auth_client
 
 A Net::OAuth2::Moosey::Client object with which authenticated requests are made.  If you are running 
 in application mode (interactive), then you can accept the default.
@@ -109,13 +109,13 @@ If you already have an authenticated client, then initialise with it.
 If you have some required parameters (access_token, refresh_token or access_code), but no client
 object yet, then just define these parameters, and allow the client to be created for you.
 
-=item query_cache <Str>
+=item * query_cache <Str>
 
 Path to a directory to use as a query cache.  This can be used to cache your results for blazing
 fast performance, and not actually hitting google for every query when testing, but should not
 be enabled in a productive environment otherwise you will have stale content.
 
-=item token_store <Str>
+=item * token_store <Str>
 
 Path to the token store file to store access/refresh tokens
 
@@ -154,12 +154,12 @@ sub _build_auth_client {
     return $client;
 }
 
-=head1 SUBROUTINES/METHODS
+=head1 METHODS
 
 =head2 query
 
 Submit a (Googley) SQL query.  Single argument is the SQL.
-Return value is a L<Google::Fusion::Result> object
+Return is a L<Google::Fusion::Result> object
 
 Example:
 

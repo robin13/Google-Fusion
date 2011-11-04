@@ -9,11 +9,11 @@ Google::Fusion::Result - A Query result
 
 =head1 VERSION
 
-Version 0.02
+Version 0.03
 
 =cut
 
-our $VERSION = '0.02';
+our $VERSION = '0.03';
 
 
 =head1 SYNOPSIS
@@ -32,51 +32,51 @@ our $VERSION = '0.02';
 
 =over 2
 
-=item query <Str>
+=item * query <Str>
 
 The query string
 
-=item response <HTTP::Response>
+=item * response <HTTP::Response>
 
 The response object associated with the query
 
-=item error <Str>
+=item * error <Str>
 
 Error string, if an error occurred
 
-=item num_columns <Int>
+=item * num_columns <Int>
 
 Number of columns the result has
 
-=item num_rows <Int>
+=item * num_rows <Int>
 
 Number of rows this result has (excluding headers).
 
-=item max_lengths <ArrayRef[Int]>
+=item * max_lengths <ArrayRef[Int]>
 
 Array of the maximum lengths of fields for each column
 
-=item has_headers <Bool>
+=item * has_headers <Bool>
 
 True if this result has headers
 
-=item query_time <Num>
+=item * query_time <Num>
 
 Seconds (using Time::HiRes) the query took
 
-=item auth_time <Num>
+=item * auth_time <Num>
 
 Seconds (using Time::HiRes) the authentication part of the query took
 
-=item total_time <Num>
+=item * total_time <Num>
 
 Total time for the query
 
-=item rows <ArrayRef[ArrayRef]>
+=item * rows <ArrayRef[ArrayRef]>
 
 The actual results
 
-=item columns <ArrayRef>
+=item * columns <ArrayRef>
 
 The column names (if has_headers is true).
 
