@@ -5,3 +5,4 @@ blib
 *.swp
 Makefile
 pm_to_blib
+Google-Fusion-*.tar.gz

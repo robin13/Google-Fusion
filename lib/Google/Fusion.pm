@@ -22,11 +22,11 @@ Google::Fusion - Interface to the Google Fusion Tables API
 
 =head1 VERSION
 
-Version 0.06
+Version 0.07
 
 =cut
 
-our $VERSION = '0.06';
+our $VERSION = '0.07';
 
 
 =head1 SYNOPSIS
@@ -172,10 +172,6 @@ sub query {
     my $self    = shift;
     my $sql     = shift;
 
-    if( $sql !~ m/^(show|describe|create|select|insert|update|delete|drop)/i ){
-        die( "That doesn't look like a valid (Fusion) SQL statement...\n" );
-    }
-   
     # Get a valid access_token before timing the query time
     my $auth_time_start = time();
     $self->auth_client->access_token_object->valid_access_token();
