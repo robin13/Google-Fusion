@@ -20,6 +20,8 @@ WriteMakefile(
 	'LWP::Protocol::https'		=> 0,
 	'LWP::UserAgent'		=> 0,
 	'Moose'				=> 0,
+	'Moose::Util::TypeConstraints'	=> 0,
+	'MooseX::Params::Validate'	=> 0,
 	'Net::OAuth2::Moosey::Client'	=> 0.02,
 	'Test::More'			=> 0,
 	'Text::CSV'			=> 0,

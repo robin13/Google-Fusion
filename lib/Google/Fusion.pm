@@ -2,6 +2,8 @@ package Google::Fusion;
 use 5.006;
 
 use Moose;
+use Moose::Util::TypeConstraints;
+use MooseX::Params::Validate;
 use LWP::UserAgent;
 use HTTP::Request;
 use URL::Encode qw/url_encode/;
@@ -22,11 +24,11 @@ Google::Fusion - Interface to the Google Fusion Tables API
 
 =head1 VERSION
 
-Version 0.07
+Version 0.08
 
 =cut
 
-our $VERSION = '0.07';
+our $VERSION = '0.08';
 
 
 =head1 SYNOPSIS
@@ -122,6 +124,9 @@ Path to the token store file to store access/refresh tokens
 =back
 
 =cut
+subtype 'InsertStatement',
+      as 'Str',
+      where { $_ =~ m/^INSERT/ };
 
 has 'client_id'     => ( is => 'ro', isa => 'Str',                                  );
 has 'client_secret' => ( is => 'ro', isa => 'Str',                                  );
@@ -136,6 +141,8 @@ has 'auth_client'   => ( is => 'ro',                required => 1, lazy => 1,
     isa         => 'Net::OAuth2::Moosey::Client',
     builder     => '_build_auth_client',
     );
+has 'insert_buffer'         => ( is => 'rw', isa => 'Str', clearer => 'clear_insert_buffer', default => sub{ '' } );
+has 'insert_buffer_limit'   => ( is => 'ro', isa => 'Int', default => 20_000  );
 
 # Local method to build the auth_client if it wasn't passed
 sub _build_auth_client {
@@ -248,6 +255,57 @@ Example:
 sub get_fresh_access_token {
     my $self    = shift;
     $self->auth_client->get_fresh_access_token();
+}
+
+
+=head2 add_to_insert_buffer
+
+The Fusion Table intefrace allows multiple INSERT commands to be sent in one query.
+This can be used similarly to the query method, but and will reduce the number of queries
+you use.
+
+  
+# Get data from your local database
+$sth->execute();
+while( my $row = $sth->fetchrow_hashref ){
+    $fusion->add_to_insert_buffer( sprintf( "INSERT INTO INTO 12345 ( Id, Text ) VALUES( '%s', '%s' )", $row->{Id}, $row->{Text} ) );
+}
+$fusion->send_insert_buffer;
+
+Obviously this can be further optimised by having many VALUES per INSERT.
+
+If a send_insert_buffer was triggered during the add, this is returned, otherwise undef is returned
+
+=cut
+sub add_to_insert_buffer {
+    my $self = shift;
+    my ( $sql ) = pos_validated_list(
+        \@_,
+        { isa => 'InsertStatement' },
+      );
+    
+    # Make sure there is a newline after the new SQL
+    $sql =~ s/^(.*);?+\s*/$1;\n/s;
+
+    my $rtn = undef;
+    # Send the buffer if it is already full
+    if( ( length( $sql ) + length( $self->insert_buffer ) ) > $self->insert_buffer_limit ){
+        $rtn = $self->send_insert_buffer;
+    }
+    $self->insert_buffer( $self->insert_buffer . $sql );
+    return $rtn;
+}
+
+=head2 send_insert_buffer
+
+Flush the rest of the insert buffer
+
+=cut
+sub send_insert_buffer {
+    my $self = shift;
+    my $sql = $self->insert_buffer;
+    $self->clear_insert_buffer;
+    return $self->query( $sql );
 }
 
 # Private method to use cached queries if possible (and desired - the query_cache is defined)
