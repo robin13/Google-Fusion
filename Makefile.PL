@@ -12,6 +12,7 @@ WriteMakefile(
       ? ('LICENSE'=> 'perl')
       : ()),
     PL_FILES            => {},
+    EXE_FILES	=> [ 'bin/pfusion' ],
     PREREQ_PM => {
 	'Carp'				=> 0,
 	'Encode'			=> 0,
@@ -29,6 +30,15 @@ WriteMakefile(
 	'URL::Encode'			=> 0,
 	'YAML'				=> 0,
     },
+    (! eval { ExtUtils::MakeMaker->VERSION(6.46) } ? () :
+     (META_ADD => {
+      resources => {
+      homepage   => 'https://github.com/robin13/Google-Fusion',
+      repository => 'https://github.com/robin13/Google-Fusion',
+      bugtracker => 'https://github.com/robin13/Google-Fusion/issues',
+      },
+      })
+    ),
     dist                => { COMPRESS => 'gzip -9f', SUFFIX => 'gz', },
     clean               => { FILES => 'Google-Fusion-*' },
 );
