@@ -24,11 +24,11 @@ Google::Fusion - Interface to the Google Fusion Tables API
 
 =head1 VERSION
 
-Version 0.09
+Version 0.10
 
 =cut
 
-our $VERSION = '0.09';
+our $VERSION = '0.10';
 
 
 =head1 SYNOPSIS
@@ -285,7 +285,7 @@ sub add_to_insert_buffer {
       );
     
     # Make sure there is a newline after the new SQL
-    $sql =~ s/^(.*);?+\s*/$1;\n/s;
+    $sql =~ s/^(.*);?\s*/$1;\n/s;
 
     my $rtn = undef;
     # Send the buffer if it is already full
