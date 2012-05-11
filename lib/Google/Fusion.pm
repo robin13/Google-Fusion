@@ -292,7 +292,7 @@ sub add_to_insert_buffer {
     if( ( length( $sql ) + length( $self->insert_buffer ) ) > $self->insert_buffer_limit ){
         $rtn = $self->send_insert_buffer;
     }
-    $self->insert_buffer( $self->insert_buffer . $sql );
+    $self->insert_buffer( ( $self->insert_buffer || '' ) . $sql );
     return $rtn;
 }
 
