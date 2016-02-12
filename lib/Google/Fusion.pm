@@ -168,7 +168,7 @@ sub _build_auth_client {
 =head2 query
 
 Submit a (Googley) SQL query.  Single argument is the SQL.
-Return is a L<Google::Fusion::Result> object
+Return is the raw json form the reponse or the Response message and code if there was an error.
 
 Example:
 
