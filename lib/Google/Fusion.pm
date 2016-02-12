@@ -166,27 +166,76 @@ sub _build_auth_client {
 =head1 METHODS
 
 =head2 query
-
 Submit a (Googley) SQL query.  Single argument is the SQL.
-Return is the raw json form the reponse or the Response message and code if there was an error.
-
+Return is a L<Google::Fusion::Result> object
 Example:
-
     my $result = $fusion->query( 'SELECT * FROM 123456' );
-
 =cut
 sub query {
     my $self    = shift;
     my $sql     = shift;
 
-    my $result;
-    my $response = $self->_query_or_cache( $sql );
-    if ( not $response->is_success ) {
-        $result = sprintf "%s (%u)", $response->message, $response->code;
-    } else {
-        $result = $response->content;
-    }
+    # Get a valid access_token before timing the query time
+    my $auth_time_start = time();
+    $self->auth_client->access_token_object->valid_access_token();
+    my $auth_time = time() - $auth_time_start;
 
+    my $query_start = time();
+    
+    my $response = $self->_query_or_cache( $sql );
+
+    my $query_time = time() - $query_start;
+    my $result = Google::Fusion::Result->new(
+        query       => $sql,
+        response    => $response,
+        query_time  => $query_time,
+        auth_time   => $auth_time,
+        total_time  => $query_time + $auth_time,
+        );
+
+    if( not $response->is_success ){
+        $result->error( sprintf "%s (%u)", $response->message, $response->code );
+    }else{
+        # Response was a success
+        # TODO: RCL 2011-09-08 Parse the actual error message from the response
+        # TODO: RCL 2011-09-08 Refresh access_key if it was invalid, or move that
+        # action to the Client?
+
+        my $data = $response->decoded_content();
+        # print $data; 
+        my $csv = Text::CSV->new ( { 
+            binary      => 1,  # Reliable handling of UTF8 characters
+            escape_char => '"',
+            quote_char  => '"',
+            } ) or croak( "Cannot use CSV: ".Text::CSV->error_diag () );
+        my $io = IO::String->new( $data );
+        my $parsed_data = $csv->getline_all( $io );
+        $csv->eof or $csv->error_diag();
+
+
+        # Find the max length of each column
+        # TODO: RCL 2011-09-09 This won't handle elements with newlines gracefully...
+        my @max;
+        foreach my $row_idx( 0 .. scalar( @{ $parsed_data } ) - 1 ){
+            foreach my $col_idx ( 0 .. scalar( @{ $parsed_data->[0] } ) - 1 ){
+                if( ( not $max[$col_idx] ) or ( length( $parsed_data->[$row_idx][$col_idx] ) > $max[$col_idx] ) ){
+                    $max[$col_idx] = length( $parsed_data->[$row_idx][$col_idx] );
+                }
+            }
+        }
+
+
+        if( $self->headers ){
+            $result->columns( shift( @{ $parsed_data } ) );
+        }
+        $result->rows( $parsed_data );
+        $result->has_headers( $self->headers );
+        if( not $result->num_columns ){
+            $result->num_columns( scalar( @{ $parsed_data->[0] } ) );
+        }
+        $result->max_lengths( \@max );
+        $result->has_headers( $self->headers );
+    }
     return $result;
 }
 
