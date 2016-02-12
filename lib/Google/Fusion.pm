@@ -34,9 +34,9 @@ our $VERSION = '0.10';
 =head1 SYNOPSIS
 
   my $fusion = Google::Fusion->new( 
-    client_id	    => $client_id,
+    client_id       => $client_id,
     client_secret   => $client_secret,
-    token_store	    => $token_store,
+    token_store     => $token_store,
     );
 
   # Get the result for a query
@@ -323,7 +323,7 @@ sub _query_or_cache {
         }
     }
     if( not $response ){
-        my @post_args =  ( 'https://www.google.com/fusiontables/api/query',
+        my @post_args =  ( 'https://www.googleapis.com/fusiontables/v2/query',
             HTTP::Headers->new( Content_Type => 'application/x-www-form-urlencoded' ),
             sprintf( 'sql=%s&hdrs=%s',
                 url_encode( $sql ),
