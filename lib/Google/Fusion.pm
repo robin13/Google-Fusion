@@ -152,7 +152,7 @@ sub _build_auth_client {
         site_url_base           => 'https://accounts.google.com/o/oauth2/auth',
         access_token_url_base   => 'https://accounts.google.com/o/oauth2/token',
         authorize_url_base      => 'https://accounts.google.com/o/oauth2/auth',
-        scope                   => 'https://www.google.com/fusiontables/api/query',        
+        scope                   => 'https://www.googleapis.com/fusiontables/v2/query',        
     );
     foreach( qw/client_id client_secret refresh_token access_code access_token keep_alive token_store/ ){
         $client_params{$_} = $self->$_ if defined $self->$_;
